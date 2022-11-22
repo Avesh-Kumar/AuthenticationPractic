@@ -2,13 +2,14 @@
 const express = require("express");
 const bcrypt = require("bcryptjs");
 const path = require("path");
+require('dotenv').config()
 const session = require("express-session");
 const passport = require("passport");
 const LocalStrategy = require("passport-local").Strategy;
 const mongoose = require("mongoose");
 const Schema = mongoose.Schema;
 
-const mongoDb = "mongodb+srv://AveshKumar:AveshKumar33@cluster0.yz9qswz.mongodb.net/authentcate?retryWrites=true&w=majority";
+const mongoDb = `mongodb+srv://AveshKumar:${process.env.password}@cluster0.yz9qswz.mongodb.net/authentcate?retryWrites=true&w=majority`;
 mongoose.connect(mongoDb, { useUnifiedTopology: true, useNewUrlParser: true });
 const db = mongoose.connection;
 db.on("error", console.error.bind(console, "mongo connection error"));
@@ -114,4 +115,4 @@ app.get("/log-out", (req, res) => {
     });
 });
 
-app.listen(3000, () => console.log("app listening on port 3000!"));
+app.listen(process.env.PORT, () => console.log(`app listening on port ${process.env.PORT}!`));
