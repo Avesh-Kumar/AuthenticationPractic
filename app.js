@@ -1,13 +1,15 @@
 const bcrypt = require('bcryptjs');
 const express = require("express");
-require('dotenv').config();
+const { body, validationResult } = require('express-validator');
 const path = require("path");
 const session = require("express-session");
 const passport = require("passport");
 const LocalStrategy = require("passport-local").Strategy;
 const mongoose = require("mongoose");
+const { dirname } = require('path');
 const Schema = mongoose.Schema;
-
+require('dotenv').config();
+const app = express();
 const mongoDb = `mongodb+srv://AveshKumar:${process.env.password}@cluster0.yz9qswz.mongodb.net/authentcate?retryWrites=true&w=majority`;
 
 mongoose.connect(mongoDb, { useUnifiedTopology: true, useNewUrlParser: true });
@@ -17,12 +19,12 @@ db.on("error", console.error.bind(console, "mongo connection error"));
 const User = mongoose.model(
     "User",
     new Schema({
-        username: { type: String, required: true },
+        username: { type: String, required: true ,unique:true},
         password: { type: String, required: true }
     })
 );
 
-const app = express();
+
 app.set("views", __dirname);
 app.set("view engine", "ejs");
 
@@ -52,6 +54,10 @@ passport.use(
     })
 );
 
+
+app.use(passport.initialize());
+app.use(passport.session());
+app.use(express.urlencoded({ extended: false }));
 passport.serializeUser(function (user, done) {
     done(null, user.id);
 });
@@ -62,16 +68,13 @@ passport.deserializeUser(function (id, done) {
     });
 });
 
-app.use(passport.initialize());
-app.use(passport.session());
-app.use(express.urlencoded({ extended: false }));
 
 app.use(function (req, res, next) {
     res.locals.currentUser = req.user;
     next();
 });
 // now from here starting all get methods related API  
-//To get index page
+//To get index page            
 app.get("/", (req, res) => res.render("index", { title: 'welcome my authentication app' }));
 //To get sign-up success page
 app.get("/signsuccess", (req, res) => res.render("index", { title: 'user register successfully' }));
@@ -96,24 +99,53 @@ app.get("/log-out", (req, res) => {
         res.redirect("/logoutsuccess");
     });
 });
-
-
 // from here all post routing start 
 // For post sign-up form data
-app.post("/sign-up", (req, res, next) => {
+app.post("/sign-up", [
+        body('username').trim().isEmail().normalizeEmail().isLowercase().withMessage('please enter valid mail')
+        .custom(value => {
+            
+            return User.findOne({username:value}).then(user => {
+              if (user) {
+                return Promise.reject('E-mail already in use');
+              }
+            });
+          }),
+    body('password')
+        .not()
+        .trim()
+        .isLength({ min: 5 })
+        .withMessage('please enter the valid password'),
+
+], (req, res, next) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+        console.log(errors);
+        res.render('sign-up-form', { errors: errors.array() });
+        res.send();
+    }
+    else{
     bcrypt.hash(req.body.password, 10, async (err, hashedPassword) => {
+        if(err){
+            res.send('something went wrong ',err);
+        }
+        else{
         try {
             await User.create({ username: req.body.username, password: hashedPassword });
             res.redirect("/signsuccess");
         } catch (err) {
-            return next(err);
+            return next(err)
         }
-
-    })
+    }
+    });
+}
 });
 //For post log-in form data
 app.post(
-    "/log-in",
+    "/log-in",[body('username')
+    .trim().isEmail().normalizeEmail().isLowercase().withMessage('please enter valid mail'),
+    body('password').not().trim().isLength({min:5}).withMessage('please enter valid password')
+],
     passport.authenticate("local", {
         successRedirect: "/loginsuccess",
         failureRedirect: "/log-in"
